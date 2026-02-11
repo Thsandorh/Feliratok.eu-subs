@@ -9,13 +9,22 @@ const MANIFEST = {
   version: '1.0.0',
   name: 'Feliratok.eu Subtitles',
   description:
-    'Teljes körű Stremio felirat addon a feliratok.eu oldalhoz (filmek, sorozatok, évadpakk támogatással).',
+    'Complete Stremio subtitles addon for feliratok.eu (movies, series, season-pack support).',
   resources: ['subtitles'],
   types: ['movie', 'series'],
   idPrefixes: ['tt'],
   catalogs: [],
+  config: [
+    {
+      key: 'lang',
+      type: 'select',
+      title: 'Subtitle language',
+      options: ['all', 'hun', 'eng'],
+      default: 'all'
+    }
+  ],
   behaviorHints: {
-    configurable: false,
+    configurable: true,
     configurationRequired: false
   }
 };
@@ -46,12 +55,20 @@ function convertArchiveEntriesToProxyUrls(subtitles, { season, episode }) {
     return {
       ...subtitle,
       url: createProxyUrl(subtitle.url, season, episode),
-      releaseInfo: `${subtitle.releaseInfo} | Kicsomagolás: on-the-fly`
+      releaseInfo: `${subtitle.releaseInfo} | Extraction: on-the-fly`
     };
   });
 }
 
-builder.defineSubtitlesHandler(async ({ type, id, extra = {} }) => {
+function filterByConfigLanguage(subtitles, config = {}) {
+  const lang = String(config.lang || 'all').toLowerCase();
+  if (lang === 'all') {
+    return subtitles;
+  }
+  return subtitles.filter((sub) => String(sub.lang || '').toLowerCase() === lang);
+}
+
+builder.defineSubtitlesHandler(async ({ type, id, extra = {}, config = {} }) => {
   try {
     const imdbId = String(id || '').split(':')[0];
     if (!imdbId.startsWith('tt')) {
@@ -77,6 +94,8 @@ builder.defineSubtitlesHandler(async ({ type, id, extra = {} }) => {
       season: extra.season,
       episode: extra.episode
     });
+
+    subtitles = filterByConfigLanguage(subtitles, config);
 
     return { subtitles: subtitles.slice(0, 100) };
   } catch (error) {

@@ -1,23 +1,23 @@
 # Feliratok.eu Stremio Subtitles Addon
 
-Stremio kiegészítő, ami a [feliratok.eu](https://feliratok.eu/) feliratbázisából ad vissza feliratokat:
+A Stremio subtitles addon powered by [feliratok.eu](https://feliratok.eu/), supporting:
 
-- filmekhez,
-- sorozatokhoz,
-- külön évadpakk kereséssel régi és új sorozatok esetén is.
+- movies,
+- series,
+- season-pack based subtitle discovery for both old and new shows.
 
-## Fő működés
+## How it works
 
-1. A Stremio átadja az IMDb azonosítót és (sorozatnál) évad/epizód adatokat.
-2. A kiegészítő lekéri a metaadatot a Cinemeta API-ról.
-3. Filmnél cím alapján keres a `feliratok.eu/index.php?search=...&tab=film` végponton.
-4. Sorozatnál:
-   - `action=autoname` endpointtal feloldja a `sid` azonosítót,
-   - epizódra keres `complexsearch=true&evad=...&epizod1=...` paraméterekkel,
-   - külön évadpakk keresést is lefuttat `evadpakk=on` használatával.
-5. A HTML találatokból kinyeri a letöltési URL-t és a nyelvet, majd Stremio-kompatibilis `subtitles` választ ad.
+1. Stremio passes IMDb id and (for series) season/episode metadata.
+2. The addon fetches title metadata from Cinemeta.
+3. For movies, it searches `feliratok.eu/index.php?search=...&tab=film`.
+4. For series, it:
+   - resolves the internal series id (`sid`) via `action=autoname`,
+   - searches by season/episode using `complexsearch=true&evad=...&epizod1=...`,
+   - performs an additional season-pack search with `evadpakk=on`.
+5. HTML results are parsed into Stremio-compatible `subtitles` objects.
 
-## Használat
+## Usage
 
 ```bash
 npm install
@@ -30,20 +30,31 @@ Manifest URL:
 http://127.0.0.1:7000/manifest.json
 ```
 
-Ezt add hozzá a Stremio-hoz mint Community addon.
+Add this URL to Stremio as a Community addon.
 
-## Fontos megjegyzések
+## Important notes
 
-- A `feliratok.eu` HTML oldalait parse-olja, nincs hivatalos publikus JSON API a teljes feliratlistára.
-- Az addon deduplikálja a találatokat URL+nyelv alapon.
-- A találatlista maximum 100 elemre van vágva a Stremio válaszban.
-
+- The addon parses feliratok.eu HTML pages; there is no official public JSON API for full subtitle listing.
+- Results are deduplicated by `URL + language`.
+- Subtitle response is capped at 100 items.
 
 ## Vercel deploy
 
-1. Pushold a repót GitHubra.
-2. Vercelben `New Project` -> válaszd a repót.
-3. Build Command: hagyd alapértelmezetten (Node projekt).
-4. Deploy után a manifest URL: `https://<project>.vercel.app/manifest.json`
-5. Ezt az URL-t add hozzá Stremio-ban Community addonként.
-A repo tartalmaz egy `vercel.json` rewrite szabályt, ami minden útvonalat az addon routerre küld, így a Stremio endpointok (`/manifest.json`, `/subtitles/...`, `/subfile/...`) közvetlenül működnek Vercelen is. A publikus host/protokoll automatikusan a beérkező kérésből kerül meghatározásra, ezért nem kell külön `ADDON_BASE_URL` változót beállítani. A `/subfile/...` végpont a ZIP/RAR évadpakkokból memóriában választja ki a megfelelő epizód feliratot, fájl mentése nélkül.
+1. Push the repository to GitHub.
+2. In Vercel, create a new project from the repo.
+3. Keep default Node build settings.
+4. After deploy, use: `https://<project>.vercel.app/manifest.json`
+5. Add that URL to Stremio as a Community addon.
+
+The repo includes a `vercel.json` rewrite rule so Stremio routes (`/manifest.json`, `/subtitles/...`, `/subfile/...`) work directly on Vercel. Public host/protocol are auto-detected from request headers, so `ADDON_BASE_URL` is not required.
+
+`/subfile/...` extracts subtitle files from ZIP/RAR season packs in memory (no archive file persisted to disk).
+
+## Configure page
+
+- `/` redirects to `/configure`.
+- `/configure` lets users choose subtitle language (`All`, `Hungarian`, `English`).
+- It provides:
+  - a `Open Stremio Manifest` button,
+  - a copy-friendly dynamic manifest URL field.
+- Selected language is embedded into config manifest URL, so the addon can filter returned subtitles accordingly.
