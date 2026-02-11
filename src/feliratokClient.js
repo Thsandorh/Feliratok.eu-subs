@@ -79,10 +79,10 @@ function parseSubtitleRows(html, context = {}) {
 
     const releaseInfoParts = [
       eredeti || magyar,
-      filename ? `Fájl: ${filename}` : '',
-      uploader ? `Feltöltő: ${uploader}` : '',
-      date ? `Dátum: ${date}` : '',
-      isSeasonPack ? 'Évadpakk' : ''
+      filename ? `File: ${filename}` : '',
+      uploader ? `Uploader: ${uploader}` : '',
+      date ? `Date: ${date}` : '',
+      isSeasonPack ? 'Season pack' : ''
     ].filter(Boolean);
 
     subtitles.push({

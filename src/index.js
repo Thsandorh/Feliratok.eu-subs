@@ -1,5 +1,6 @@
 const { addonBuilder } = require('stremio-addon-sdk');
 const { fetchMovieSubtitles, fetchSeriesSubtitles } = require('./feliratokClient');
+const { fetchWyzieSubtitles } = require('./wyzieClient');
 const { fetchJson } = require('./http');
 const { createProxyUrl } = require('./archiveProxy');
 const { startServer } = require('./server');
@@ -9,7 +10,7 @@ const MANIFEST = {
   version: '1.0.0',
   name: 'Feliratok.eu Subtitles',
   description:
-    'Complete Stremio subtitles addon for feliratok.eu (movies, series, season-pack support).',
+    'Modern Stremio subtitles addon powered by Feliratok.eu + Wyzie (movies, series, season-pack support).',
   resources: ['subtitles'],
   types: ['movie', 'series'],
   idPrefixes: ['tt'],
@@ -62,10 +63,25 @@ function convertArchiveEntriesToProxyUrls(subtitles, { season, episode }) {
 
 function filterByConfigLanguage(subtitles, config = {}) {
   const lang = String(config.lang || 'all').toLowerCase();
-  if (lang === 'all') {
-    return subtitles;
-  }
+  if (lang === 'all') return subtitles;
   return subtitles.filter((sub) => String(sub.lang || '').toLowerCase() === lang);
+}
+
+function dedupeMergedSubtitles(subtitles) {
+  const seen = new Set();
+  return subtitles.filter((sub) => {
+    const key = `${sub.url}|${sub.lang}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function wyzieLanguageFromConfig(config = {}) {
+  const lang = String(config.lang || 'all').toLowerCase();
+  if (lang === 'hun') return 'hu';
+  if (lang === 'eng') return 'en';
+  return 'en,hu';
 }
 
 builder.defineSubtitlesHandler(async ({ type, id, extra = {}, config = {} }) => {
@@ -79,25 +95,33 @@ builder.defineSubtitlesHandler(async ({ type, id, extra = {}, config = {} }) => 
     const meta = await fetchCinemetaMeta(cinemetaType, imdbId);
     const names = buildNameCandidates(meta, imdbId);
 
-    let subtitles = [];
+    let feliratokSubtitles = [];
     if (type === 'movie') {
-      subtitles = await fetchMovieSubtitles({ names });
+      feliratokSubtitles = await fetchMovieSubtitles({ names });
     } else if (type === 'series') {
-      subtitles = await fetchSeriesSubtitles({
+      feliratokSubtitles = await fetchSeriesSubtitles({
         names,
         season: extra.season,
         episode: extra.episode
       });
     }
 
-    subtitles = convertArchiveEntriesToProxyUrls(subtitles, {
+    feliratokSubtitles = convertArchiveEntriesToProxyUrls(feliratokSubtitles, {
       season: extra.season,
       episode: extra.episode
     });
 
+    const wyzieSubtitles = await fetchWyzieSubtitles({
+      imdbId,
+      season: type === 'series' ? extra.season : undefined,
+      episode: type === 'series' ? extra.episode : undefined,
+      language: wyzieLanguageFromConfig(config)
+    });
+
+    let subtitles = dedupeMergedSubtitles([...feliratokSubtitles, ...wyzieSubtitles]);
     subtitles = filterByConfigLanguage(subtitles, config);
 
-    return { subtitles: subtitles.slice(0, 100) };
+    return { subtitles: subtitles.slice(0, 150) };
   } catch (error) {
     console.error('[subtitles-handler-error]', error);
     return { subtitles: [] };
@@ -111,5 +135,5 @@ module.exports = addonInterface;
 if (require.main === module) {
   const port = Number(process.env.PORT || 7000);
   startServer({ addonInterface, port });
-  console.log(`✅ Feliratok.eu Stremio addon fut: http://127.0.0.1:${port}/manifest.json`);
+  console.log(`✅ Feliratok.eu Stremio addon running: http://127.0.0.1:${port}/manifest.json`);
 }

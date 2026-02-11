@@ -34,7 +34,7 @@ test('parseSubtitleRows extracts subtitles and season packs', () => {
   assert.equal(rows.length, 2);
   assert.equal(rows[0].lang, 'hun');
   assert.equal(rows[1].lang, 'eng');
-  assert.match(rows[1].releaseInfo, /Évadpakk/);
+  assert.match(rows[1].releaseInfo, /Season pack/);
 });
 
 test('dedupeSubtitles removes duplicate url+lang items', () => {

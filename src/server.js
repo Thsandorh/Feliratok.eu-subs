@@ -57,34 +57,97 @@ function configurePageHtml(baseUrl) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Feliratok.eu Stremio Addon - Configure</title>
+  <title>Feliratok.eu Subtitles - Configure</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 760px; margin: 30px auto; padding: 0 16px; }
-    h1 { font-size: 24px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; }
-    label, select, button, input { font-size: 16px; }
-    select, input { width: 100%; padding: 10px; margin-top: 8px; box-sizing: border-box; }
-    button { margin-top: 12px; padding: 10px 14px; cursor: pointer; }
-    .muted { color: #555; font-size: 14px; }
+    :root {
+      --bg: #0b1020;
+      --card: rgba(19, 28, 55, 0.88);
+      --line: rgba(255,255,255,0.14);
+      --txt: #e6eeff;
+      --muted: #9fb1d9;
+      --primary: #6ea8fe;
+      --primary2: #5a7fff;
+      --ok: #79f2b3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--txt);
+      background: radial-gradient(1200px 600px at 10% 0%, #1d2a52 0%, #0b1020 45%, #060914 100%);
+      display: grid;
+      place-items: center;
+      padding: 28px 16px;
+    }
+    .wrap { width: min(840px, 100%); }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 24px;
+      background: var(--card);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 14px 48px rgba(0,0,0,.4);
+    }
+    h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 3vw, 2.1rem); }
+    p.lead { margin: 0 0 20px; color: var(--muted); }
+    label { display: block; margin-bottom: 8px; color: var(--muted); font-size: .95rem; }
+    select, input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      color: var(--txt);
+      background: rgba(10, 16, 35, .8);
+      outline: none;
+    }
+    select:focus, input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(110,168,254,.22); }
+    .row { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); margin-top: 14px; }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform .08s ease, filter .15s ease;
+    }
+    button:active { transform: translateY(1px); }
+    .btn-primary { color: #0a0f22; background: linear-gradient(135deg, var(--primary), var(--primary2)); }
+    .btn-ghost { color: var(--txt); background: rgba(255,255,255,0.08); border: 1px solid var(--line); }
+    .small { color: var(--muted); margin-top: 10px; font-size: .9rem; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      margin-top: 14px; padding: 6px 10px; border-radius: 999px;
+      background: rgba(121,242,179,.12); border: 1px solid rgba(121,242,179,.3); color: var(--ok); font-size: .85rem;
+    }
+    code { color: #b6cbff; }
   </style>
 </head>
 <body>
-  <h1>Feliratok.eu Stremio Addon - Configuration</h1>
-  <div class="card">
-    <label for="lang">Subtitle language</label>
-    <select id="lang">
-      <option value="all">All languages</option>
-      <option value="hun">Hungarian</option>
-      <option value="eng">English</option>
-    </select>
+  <main class="wrap">
+    <section class="card">
+      <h1>Feliratok.eu Subtitles for Stremio</h1>
+      <p class="lead">Pick your preferred subtitle language, then install directly in Stremio or copy the dynamic manifest URL.</p>
 
-    <label for="manifestUrl" style="margin-top:12px;display:block;">Dynamic manifest URL</label>
-    <input id="manifestUrl" type="text" readonly value="${all}" />
+      <label for="lang">Subtitle language</label>
+      <select id="lang">
+        <option value="all">All languages</option>
+        <option value="hun">Hungarian</option>
+        <option value="eng">English</option>
+      </select>
 
-    <button id="copyBtn">Copy Manifest URL</button>
-    <button id="openStremioBtn">Open Stremio Manifest</button>
-    <p class="muted">The button opens the manifest URL generated for the selected language.</p>
-  </div>
+      <label for="manifestUrl" style="margin-top:12px;">Dynamic manifest URL</label>
+      <input id="manifestUrl" type="text" readonly value="${all}" />
+
+      <div class="row">
+        <button id="openStremioBtn" class="btn-primary">Open in Stremio</button>
+        <button id="copyBtn" class="btn-ghost">Copy Manifest URL</button>
+      </div>
+
+      <p class="small">Stremio button uses <code>stremio:///addon-install?url=...</code> and falls back to opening the manifest URL if deep-link is blocked.</p>
+      <div class="badge">⚡ Powered by Feliratok.eu + Wyzie subtitle sources</div>
+    </section>
+  </main>
 
   <script>
     const urls = { all: ${JSON.stringify(all)}, hun: ${JSON.stringify(hun)}, eng: ${JSON.stringify(eng)} };
@@ -97,19 +160,31 @@ function configurePageHtml(baseUrl) {
       manifest.value = urls[lang.value] || urls.all;
     }
 
+    function buildStremioLink(manifestUrl) {
+      return 'stremio:///addon-install?url=' + encodeURIComponent(manifestUrl);
+    }
+
     lang.addEventListener('change', sync);
+
     copyBtn.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(manifest.value);
         copyBtn.textContent = 'Copied ✅';
-        setTimeout(() => copyBtn.textContent = 'Copy Manifest URL', 1200);
+        setTimeout(() => (copyBtn.textContent = 'Copy Manifest URL'), 1200);
       } catch {
+        manifest.focus();
         manifest.select();
       }
     });
 
     openBtn.addEventListener('click', () => {
-      window.open(manifest.value, '_blank');
+      const manifestUrl = manifest.value;
+      const deepLink = buildStremioLink(manifestUrl);
+
+      window.location.href = deepLink;
+      setTimeout(() => {
+        window.open(manifestUrl, '_blank');
+      }, 700);
     });
 
     sync();

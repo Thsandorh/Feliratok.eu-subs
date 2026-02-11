@@ -64,10 +64,10 @@ test('Finds and extracts subtitle from old season-pack series on-the-fly (Six Fe
   assert.ok(subtitles.length > 0, 'Old series subtitles should not be empty');
 
   const seasonPackSubtitle = subtitles.find((sub) =>
-    (String(sub.releaseInfo || '').includes('Évadpakk') || String(sub.releaseInfo || '').includes('Extraction: on-the-fly')) && /\/subfile\//.test(String(sub.url || ''))
+    (String(sub.releaseInfo || '').includes('Season pack') || String(sub.releaseInfo || '').includes('Extraction: on-the-fly')) && /\/subfile\//.test(String(sub.url || ''))
   );
 
-  assert.ok(seasonPackSubtitle, 'Expected an Évadpakk subtitle with local /subfile/ proxy URL');
+  assert.ok(seasonPackSubtitle, 'Expected a season-pack subtitle with local /subfile/ proxy URL');
 
   const subRes = await fetch(seasonPackSubtitle.url);
   assert.equal(subRes.ok, true, 'Expected subfile endpoint to return HTTP 200');
@@ -88,5 +88,6 @@ test('Redirects homepage to /configure and exposes dynamic manifest field', { ti
   assert.match(html, /Dynamic manifest URL/, 'Configure page should contain dynamic manifest field');
   assert.match(html, /option value="hun"/, 'Configure page should expose Hungarian option');
   assert.match(html, /option value="eng"/, 'Configure page should expose English option');
+  assert.match(html, /Open in Stremio/, 'Configure page should contain Stremio install button');
+  assert.match(html, /stremio:\/\/\/addon-install\?url=/, 'Configure page should include Stremio deep-link pattern');
 });
-
