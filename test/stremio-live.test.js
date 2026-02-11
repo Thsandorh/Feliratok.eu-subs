@@ -89,5 +89,5 @@ test('Redirects homepage to /configure and exposes dynamic manifest field', { ti
   assert.match(html, /option value="hun"/, 'Configure page should expose Hungarian option');
   assert.match(html, /option value="eng"/, 'Configure page should expose English option');
   assert.match(html, /Open in Stremio/, 'Configure page should contain Stremio install button');
-  assert.match(html, /stremio:\/\/\/addon-install\?url=/, 'Configure page should include Stremio deep-link pattern');
+  assert.match(html, /stremio:\/\//, 'Configure page should include Stremio deep-link pattern');
 });

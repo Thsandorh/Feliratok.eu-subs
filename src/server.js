@@ -140,11 +140,11 @@ function configurePageHtml(baseUrl) {
       <input id="manifestUrl" type="text" readonly value="${all}" />
 
       <div class="row">
-        <button id="openStremioBtn" class="btn-primary">Open in Stremio</button>
+        <a id="openStremioBtn" class="btn-primary" href="#" style="text-align:center;text-decoration:none;display:block;">Open in Stremio</a>
         <button id="copyBtn" class="btn-ghost">Copy Manifest URL</button>
       </div>
 
-      <p class="small">Stremio button uses <code>stremio:///addon-install?url=...</code> and falls back to opening the manifest URL if deep-link is blocked.</p>
+      <p class="small">Stremio button uses the native install URI format: <code>stremio://&lt;host&gt;/.../manifest.json</code>.</p>
       <div class="badge">⚡ Powered by Feliratok.eu + Wyzie subtitle sources</div>
     </section>
   </main>
@@ -156,12 +156,15 @@ function configurePageHtml(baseUrl) {
     const copyBtn = document.getElementById('copyBtn');
     const openBtn = document.getElementById('openStremioBtn');
 
-    function sync() {
-      manifest.value = urls[lang.value] || urls.all;
+    function toStremioInstallUrl(manifestUrl) {
+      const u = new URL(manifestUrl);
+      return 'stremio://' + u.host + u.pathname + u.search;
     }
 
-    function buildStremioLink(manifestUrl) {
-      return 'stremio:///addon-install?url=' + encodeURIComponent(manifestUrl);
+    function sync() {
+      const manifestUrl = urls[lang.value] || urls.all;
+      manifest.value = manifestUrl;
+      openBtn.href = toStremioInstallUrl(manifestUrl);
     }
 
     lang.addEventListener('change', sync);
@@ -175,16 +178,6 @@ function configurePageHtml(baseUrl) {
         manifest.focus();
         manifest.select();
       }
-    });
-
-    openBtn.addEventListener('click', () => {
-      const manifestUrl = manifest.value;
-      const deepLink = buildStremioLink(manifestUrl);
-
-      window.location.href = deepLink;
-      setTimeout(() => {
-        window.open(manifestUrl, '_blank');
-      }, 700);
     });
 
     sync();
