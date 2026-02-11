@@ -46,5 +46,4 @@ Ezt add hozzá a Stremio-hoz mint Community addon.
 3. Build Command: hagyd alapértelmezetten (Node projekt).
 4. Deploy után a manifest URL: `https://<project>.vercel.app/manifest.json`
 5. Ezt az URL-t add hozzá Stremio-ban Community addonként.
-
-A repo tartalmaz egy `vercel.json` rewrite szabályt, ami minden útvonalat az addon routerre küld, így a Stremio endpointok (`/manifest.json`, `/subtitles/...`) közvetlenül működnek Vercelen is.
+A repo tartalmaz egy `vercel.json` rewrite szabályt, ami minden útvonalat az addon routerre küld, így a Stremio endpointok (`/manifest.json`, `/subtitles/...`, `/subfile/...`) közvetlenül működnek Vercelen is. A publikus host/protokoll automatikusan a beérkező kérésből kerül meghatározásra, ezért nem kell külön `ADDON_BASE_URL` változót beállítani. A `/subfile/...` végpont a ZIP/RAR évadpakkokból memóriában választja ki a megfelelő epizód feliratot, fájl mentése nélkül.

@@ -1,28 +1,32 @@
 const { execFile } = require('node:child_process');
 
-function runCurl(args) {
+function runCurl(args, encoding = 'utf8') {
   return new Promise((resolve, reject) => {
-    execFile('curl', args, { maxBuffer: 20 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`curl failed: ${stderr || error.message}`));
-        return;
+    execFile(
+      'curl',
+      args,
+      { maxBuffer: 50 * 1024 * 1024, encoding },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`curl failed: ${stderr || error.message}`));
+          return;
+        }
+        resolve(stdout);
       }
-      resolve(stdout);
-    });
+    );
   });
 }
 
+function curlArgs(url) {
+  return ['-L', '--silent', '--show-error', '--max-time', '45', '-A', 'Mozilla/5.0', url];
+}
+
 async function fetchText(url) {
-  return runCurl([
-    '-L',
-    '--silent',
-    '--show-error',
-    '--max-time',
-    '30',
-    '-A',
-    'Mozilla/5.0',
-    url
-  ]);
+  return runCurl(curlArgs(url), 'utf8');
+}
+
+async function fetchBuffer(url) {
+  return runCurl(curlArgs(url), 'buffer');
 }
 
 async function fetchJson(url) {
@@ -32,5 +36,6 @@ async function fetchJson(url) {
 
 module.exports = {
   fetchText,
+  fetchBuffer,
   fetchJson
 };

@@ -59,11 +59,19 @@ test('Stremio sori lejátszásnál talál feliratot (Breaking Bad S01E01)', { ti
   assert.ok(subtitles.length > 0, 'Series subtitles should not be empty');
 });
 
-test('Régi sorozat évadpakkra talál feliratot (Six Feet Under S01)', { timeout: 60000 }, async () => {
+test('Régi sorozat évadpakkból on-the-fly kiválasztható a megfelelő felirat (Six Feet Under S01E01)', { timeout: 90000 }, async () => {
   const subtitles = await getSubtitleList('/subtitles/series/tt0248654.json?season=1&episode=1');
   assert.ok(subtitles.length > 0, 'Old series subtitles should not be empty');
-  assert.ok(
-    subtitles.some((sub) => String(sub.releaseInfo || '').includes('Évadpakk')),
-    'Expected at least one season-pack subtitle (Évadpakk)'
+
+  const seasonPackSubtitle = subtitles.find((sub) =>
+    String(sub.releaseInfo || '').includes('Évadpakk') && /\/subfile\//.test(String(sub.url || ''))
   );
+
+  assert.ok(seasonPackSubtitle, 'Expected an Évadpakk subtitle with local /subfile/ proxy URL');
+
+  const subRes = await fetch(seasonPackSubtitle.url);
+  assert.equal(subRes.ok, true, 'Expected subfile endpoint to return HTTP 200');
+
+  const subText = await subRes.text();
+  assert.match(subText, /\d+\s*\n\d{2}:\d{2}:\d{2},\d{3}/, 'Expected SRT-like content');
 });
