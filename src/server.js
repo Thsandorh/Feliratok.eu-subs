@@ -14,6 +14,36 @@ function sendHtml(res, status, html) {
   res.end(html);
 }
 
+function normalizeAppBasePath(input) {
+  const raw = String(input || '').trim();
+  if (!raw || raw === '/') {
+    return '';
+  }
+
+  const withLeadingSlash = raw.startsWith('/') ? raw : `/${raw}`;
+  const withoutTrailingSlash = withLeadingSlash.replace(/\/+$/, '');
+  return withoutTrailingSlash === '/' ? '' : withoutTrailingSlash;
+}
+
+function stripBasePathFromUrl(url, appBasePath) {
+  const [path, query = ''] = String(url || '/').split('?');
+  if (!appBasePath) {
+    return { matched: true, strippedUrl: String(url || '/') };
+  }
+
+  if (path === appBasePath || path === `${appBasePath}/`) {
+    return { matched: true, strippedUrl: `/${query ? `?${query}` : ''}` };
+  }
+
+  const prefix = `${appBasePath}/`;
+  if (!path.startsWith(prefix)) {
+    return { matched: false, strippedUrl: String(url || '/') };
+  }
+
+  const strippedPath = path.slice(appBasePath.length);
+  return { matched: true, strippedUrl: `${strippedPath}${query ? `?${query}` : ''}` };
+}
+
 function getRequestBaseUrl(req) {
   const forwardedProto = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
   const proto = forwardedProto || (req.socket.encrypted ? 'https' : 'http');
@@ -21,15 +51,23 @@ function getRequestBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
-function absolutizeSubtitleUrls(payload, req) {
+function getPublicBaseUrl(req, appBasePath) {
+  return `${getRequestBaseUrl(req)}${appBasePath}`;
+}
+
+function absolutizeSubtitleUrls(payload, req, appBasePath) {
   if (!payload || !Array.isArray(payload.subtitles)) {
     return payload;
   }
 
-  const base = getRequestBaseUrl(req);
+  const base = getPublicBaseUrl(req, appBasePath);
   payload.subtitles = payload.subtitles.map((sub) => {
     if (typeof sub?.url !== 'string') {
       return sub;
+    }
+
+    if (appBasePath && sub.url.startsWith(`${appBasePath}/`)) {
+      return { ...sub, url: `${getRequestBaseUrl(req)}${sub.url}` };
     }
 
     if (sub.url.startsWith('/')) {
@@ -211,30 +249,36 @@ async function handleSubfile(req, res) {
 function maybeHandleConfigure(req, res) {
   const path = (req.url || '').split('?')[0];
 
-  if (path === '/') {
-    res.statusCode = 302;
-    res.setHeader('Location', '/configure');
-    res.end();
-    return true;
-  }
-
-  if (path === '/configure') {
-    sendHtml(res, 200, configurePageHtml(getRequestBaseUrl(req)));
+  if (path === '/' || path === '/configure') {
+    sendHtml(res, 200, configurePageHtml(req.publicBaseUrl || getRequestBaseUrl(req)));
     return true;
   }
 
   return false;
 }
 
-function createRequestHandler(addonInterface) {
+function createRequestHandler(addonInterface, options = {}) {
+  const appBasePath = normalizeAppBasePath(options.appBasePath || process.env.APP_BASE_PATH);
   const router = getRouter(addonInterface);
 
   return async (req, res) => {
+    const { matched, strippedUrl } = stripBasePathFromUrl(req.url || '/', appBasePath);
+    if (!matched) {
+      sendJson(res, 404, { err: 'not found' });
+      return;
+    }
+
+    const originalUrl = req.url;
+    req.url = strippedUrl;
+    req.publicBaseUrl = getPublicBaseUrl(req, appBasePath);
+
     if (maybeHandleConfigure(req, res)) {
+      req.url = originalUrl;
       return;
     }
 
     if (await handleSubfile(req, res)) {
+      req.url = originalUrl;
       return;
     }
 
@@ -245,7 +289,7 @@ function createRequestHandler(addonInterface) {
         try {
           const asString = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || '');
           const payload = JSON.parse(asString);
-          const patched = absolutizeSubtitleUrls(payload, req);
+          const patched = absolutizeSubtitleUrls(payload, req, appBasePath);
           return originalEnd(JSON.stringify(patched), ...args);
         } catch {
           return originalEnd(chunk, ...args);
@@ -254,13 +298,14 @@ function createRequestHandler(addonInterface) {
     }
 
     router(req, res, () => {
+      req.url = originalUrl;
       sendJson(res, 404, { err: 'not found' });
     });
   };
 }
 
-function startServer({ addonInterface, port }) {
-  const handler = createRequestHandler(addonInterface);
+function startServer({ addonInterface, port, appBasePath }) {
+  const handler = createRequestHandler(addonInterface, { appBasePath });
   const server = http.createServer((req, res) => {
     Promise.resolve(handler(req, res)).catch((error) => {
       console.error('[server-error]', error);

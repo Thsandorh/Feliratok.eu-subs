@@ -2,11 +2,14 @@
   "name": "feliratok-eu-stremio-addon",
   "version": "1.0.0",
   "description": "Stremio subtitles addon for feliratok.eu (movies + series + season packs)",
-  "main": "src/index.js",
+  "main": "server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node server.js",
     "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "cheerio": "^1.0.0",

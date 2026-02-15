@@ -41,7 +41,7 @@ http://127.0.0.1:7000/
 
 Behavior:
 
-- `/` redirects to `/configure`
+- `/` serves the configure page (`200 text/html`)
 - A modern configuration page lets you choose subtitle language (`All`, `Hungarian`, `English`)
 - You get:
   - an **Open in Stremio** button
@@ -50,27 +50,33 @@ Behavior:
 The Stremio button uses:
 
 ```text
-stremio:///addon-install?url=<encoded_manifest_url>
+stremio://<host>/.../manifest.json
 ```
-
-and falls back to opening the manifest URL in browser if deep-link is blocked.
 
 ## Season-pack extraction (no archive storage)
 
 If a subtitle is provided as ZIP/RAR season pack, the addon serves `/subfile/...` URLs and extracts the matching episode subtitle **in-memory** (without persisting archive files on disk).
 
-## Vercel deployment
+## cPanel / CloudLinux deployment (Node.js app, no Docker)
 
-1. Push repository to GitHub.
-2. Create a Vercel project from the repo.
-3. Keep default Node settings.
-4. Use the deployed manifest URL:
+Set the Node.js application fields in cPanel:
 
-```text
-https://<project>.vercel.app/manifest.json
-```
+- Application root: repository root (the folder that contains `package.json` and `server.js`)
+- Application URL: `/` or `/addon-path`
+- Application startup file: `server.js`
+- Node.js version: 18+ (recommended: latest available on your hosting)
 
-`vercel.json` rewrites all relevant routes (`/manifest.json`, `/subtitles/...`, `/subfile/...`, `/configure`) to the serverless handler.
+Environment variables:
+
+- `APP_BASE_PATH`:
+  - leave empty when Application URL is `/`
+  - set to `/addon-path` when Application URL is `/addon-path`
+- `PORT`: optional (cPanel usually injects it automatically)
+
+URLs after deploy:
+
+- Configure page: `https://<domain>/<addon-path-if-used>/configure`
+- Manifest: `https://<domain>/<addon-path-if-used>/manifest.json`
 
 ## Notes
 
