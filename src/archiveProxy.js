@@ -2,6 +2,40 @@ const JSZip = require('jszip');
 const { createExtractorFromData } = require('node-unrar-js');
 const { fetchBuffer } = require('./http');
 
+function parsePositiveInt(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return n;
+}
+
+const MAX_EXTRACT_CONCURRENCY = parsePositiveInt(process.env.ARCHIVE_EXTRACT_CONCURRENCY, 1);
+const MAX_SUBTITLE_BYTES = parsePositiveInt(process.env.SUBTITLE_MAX_BYTES, 2 * 1024 * 1024);
+
+let activeExtractions = 0;
+const extractionQueue = [];
+const inFlight = new Map();
+
+function withExtractionSlot(fn) {
+  if (MAX_EXTRACT_CONCURRENCY <= 0) return fn();
+
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      activeExtractions += 1;
+      Promise.resolve()
+        .then(fn)
+        .then(resolve, reject)
+        .finally(() => {
+          activeExtractions -= 1;
+          const next = extractionQueue.shift();
+          if (next) next();
+        });
+    };
+
+    if (activeExtractions < MAX_EXTRACT_CONCURRENCY) run();
+    else extractionQueue.push(run);
+  });
+}
+
 function toBase64Url(value) {
   return Buffer.from(value, 'utf8').toString('base64url');
 }
@@ -81,7 +115,11 @@ async function extractFromZip(buffer, season, episode) {
   const chosen = pickBestSubtitleFile(entries, season, episode);
   if (!chosen) throw new Error('No subtitle file found in ZIP');
 
-  return zip.file(chosen).async('nodebuffer');
+  const out = await zip.file(chosen).async('nodebuffer');
+  if (out.length > MAX_SUBTITLE_BYTES) {
+    throw new Error(`Subtitle too large after ZIP extraction: ${out.length} bytes`);
+  }
+  return out;
 }
 
 async function extractFromRar(buffer, season, episode) {
@@ -101,17 +139,34 @@ async function extractFromRar(buffer, season, episode) {
     throw new Error('Failed to extract chosen subtitle from RAR');
   }
 
-  return Buffer.from(first.extraction);
+  const out = Buffer.from(first.extraction);
+  if (out.length > MAX_SUBTITLE_BYTES) {
+    throw new Error(`Subtitle too large after RAR extraction: ${out.length} bytes`);
+  }
+  return out;
 }
 
 async function getSubtitleFromArchiveUrl(originalUrl, season, episode) {
-  const payload = await fetchBuffer(originalUrl);
-  const archiveType = detectArchiveType(payload, originalUrl);
+  const key = `${originalUrl}|${season || ''}|${episode || ''}`;
+  if (inFlight.has(key)) return inFlight.get(key);
 
-  if (archiveType === 'zip') return extractFromZip(payload, season, episode);
-  if (archiveType === 'rar') return extractFromRar(payload, season, episode);
+  const promise = withExtractionSlot(async () => {
+    const payload = await fetchBuffer(originalUrl);
+    const archiveType = detectArchiveType(payload, originalUrl);
 
-  return payload;
+    if (archiveType === 'zip') return extractFromZip(payload, season, episode);
+    if (archiveType === 'rar') return extractFromRar(payload, season, episode);
+
+    if (payload.length > MAX_SUBTITLE_BYTES) {
+      throw new Error(`Subtitle payload too large: ${payload.length} bytes`);
+    }
+    return payload;
+  }).finally(() => {
+    inFlight.delete(key);
+  });
+
+  inFlight.set(key, promise);
+  return promise;
 }
 
 module.exports = {
