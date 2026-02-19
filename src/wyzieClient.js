@@ -41,35 +41,60 @@ function makeUrl(path, params = {}) {
 }
 
 function mapWyzieEntry(item) {
-  const lang = wyzieToStremioLang[String(item.language || '').toLowerCase()] || 'eng';
+  const lang = wyzieToStremioLang[String(item.language || '').toLowerCase()] || 'und';
   const releaseInfo = [
     item.media ? `Title: ${item.media}` : '',
     item.release ? `Release: ${item.release}` : '',
     item.source ? `Source: ${item.source}` : 'Source: wyzie',
     item.encoding ? `Encoding: ${item.encoding}` : ''
   ].filter(Boolean);
+  const displayName = item.release || item.media || item.id || 'subtitle';
+  const sourceName = item.source ? `Wyzie/${item.source}` : 'Wyzie';
 
   return {
-    id: `wyzie:${item.id}`,
+    id: `${displayName} | ${sourceName} | #${item.id || 'na'}`,
+    source: 'wyzie',
     lang,
     url: item.url,
+    title: `${displayName} | ${sourceName}`,
     releaseInfo: releaseInfo.join(' | ')
   };
 }
 
 async function fetchWyzieSubtitles({ imdbId, season, episode, language = 'en,hu' }) {
-  try {
-    const url = makeUrl('/search', {
-      id: imdbId,
-      season,
-      episode,
-      language,
-      format: 'srt,ass,vtt,sub'
-    });
+  async function requestWyzie(languageParam) {
+    try {
+      const url = makeUrl('/search', {
+        id: imdbId,
+        season,
+        episode,
+        language: languageParam,
+        source: 'all',
+        format: 'srt,ass,vtt,sub'
+      });
 
-    const payload = await fetchJson(url);
-    if (!Array.isArray(payload)) {
-      return [];
+      const payload = await fetchJson(url);
+      if (!Array.isArray(payload)) {
+        return [];
+      }
+      return payload;
+    } catch (error) {
+      // Treat provider-side 4xx/no-results as empty set so caller can fallback.
+      const message = String(error?.message || error);
+      if (/400|no subtitles found|invalid language format/i.test(message)) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  try {
+    let payload = await requestWyzie(language);
+
+    // Wyzie may return 0 for language-filtered query even when generic query has results.
+    // Fallback keeps EN/HU preference while avoiding empty source for many titles.
+    if (payload.length === 0 && language) {
+      payload = await requestWyzie(undefined);
     }
 
     return payload
@@ -82,5 +107,6 @@ async function fetchWyzieSubtitles({ imdbId, season, episode, language = 'en,hu'
 }
 
 module.exports = {
-  fetchWyzieSubtitles
+  fetchWyzieSubtitles,
+  mapWyzieEntry
 };

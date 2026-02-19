@@ -84,11 +84,14 @@ function parseSubtitleRows(html, context = {}) {
       date ? `Date: ${date}` : '',
       isSeasonPack ? 'Season pack' : ''
     ].filter(Boolean);
+    const displayName = filename || eredeti || magyar || `Felirat ${subtitleId}`;
 
     subtitles.push({
-      id: `feliratok:${subtitleId}`,
+      id: `${displayName} | Feliratok.eu | #${subtitleId}`,
+      source: 'feliratok',
       lang,
       url: downloadUrl,
+      title: `${displayName} | Feliratok.eu`,
       releaseInfo: releaseInfoParts.join(' | ')
     });
   });
@@ -96,7 +99,7 @@ function parseSubtitleRows(html, context = {}) {
   return subtitles;
 }
 
-async function resolveSeriesIdByName(seriesName) {
+async function resolveSeriesIdsByName(seriesName) {
   const url = makeUrl('/index.php', {
     action: 'autoname',
     term: seriesName,
@@ -105,45 +108,59 @@ async function resolveSeriesIdByName(seriesName) {
 
   const matches = await fetchJson(url);
   if (!Array.isArray(matches) || matches.length === 0) {
-    return null;
+    return [];
   }
 
   const normalizedNeedle = normalizeName(seriesName);
-  const exact = matches.find((item) => normalizeName(item.name) === normalizedNeedle);
-  const prefix = matches.find((item) => normalizeName(item.name).startsWith(normalizedNeedle));
+  const scored = matches.map((item, index) => {
+    const normalized = normalizeName(item.name);
+    let score = 0;
+    if (normalized === normalizedNeedle) score = 3;
+    else if (normalized.startsWith(normalizedNeedle)) score = 2;
+    else if (normalized.includes(normalizedNeedle)) score = 1;
+    return { id: String(item.ID), score, index };
+  });
 
-  return String((exact || prefix || matches[0]).ID);
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+  return [...new Set(scored.map((item) => item.id))];
 }
 
 async function fetchSeriesSubtitles({ names, season, episode }) {
   const results = [];
 
   for (const name of names) {
-    const sid = await resolveSeriesIdByName(name);
-    if (!sid) {
+    const sids = await resolveSeriesIdsByName(name);
+    if (sids.length === 0) {
       continue;
     }
 
-    const episodeUrl = makeUrl('/index.php', {
-      sid,
-      tab: 'sorozat',
-      complexsearch: 'true',
-      evad: season,
-      epizod1: episode
-    });
-
-    results.push(...parseSubtitleRows(await fetchText(episodeUrl), { isSeasonPack: false }));
-
-    if (season) {
-      const seasonPackUrl = makeUrl('/index.php', {
+    for (const sid of sids) {
+      const episodeUrl = makeUrl('/index.php', {
         sid,
         tab: 'sorozat',
         complexsearch: 'true',
         evad: season,
-        evadpakk: 'on'
+        epizod1: episode
       });
 
-      results.push(...parseSubtitleRows(await fetchText(seasonPackUrl), { isSeasonPack: true }));
+      const candidate = parseSubtitleRows(await fetchText(episodeUrl), { isSeasonPack: false });
+
+      if (season) {
+        const seasonPackUrl = makeUrl('/index.php', {
+          sid,
+          tab: 'sorozat',
+          complexsearch: 'true',
+          evad: season,
+          evadpakk: 'on'
+        });
+
+        candidate.push(...parseSubtitleRows(await fetchText(seasonPackUrl), { isSeasonPack: true }));
+      }
+
+      if (candidate.length > 0) {
+        results.push(...candidate);
+        break;
+      }
     }
 
     if (results.length > 0) {
